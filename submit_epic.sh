@@ -16,6 +16,7 @@ EPIC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INPUT_DIR="${1:-$EPIC_DIR/input}"
 OUTPUT_DIR="${2:-$EPIC_DIR/output}"
 LOG_DIR="$EPIC_DIR/log"
+SCRIPT_DIR="$EPIC_DIR/scripts"
 DRY_RUN="${DRY_RUN:-0}"
 
 if [[ ! -d "$INPUT_DIR" ]]; then
@@ -96,7 +97,7 @@ while IFS= read -r -d '' grn; do
       --job-name="$job_name" \
       --output="$LOG_DIR/%x_%j.out.txt" \
       --error="$LOG_DIR/%x_%j.err.txt" \
-      "$EPIC_DIR/epic_job.sh" "$EPIC_DIR/idat_report.R" "$base" "$sample_dir")"
+      "$SCRIPT_DIR/epic_job.sh" "$SCRIPT_DIR/idat_report.R" "$base" "$sample_dir")"
     echo "Submitted $id (job $job_id)"
   fi
   queued+=$'\n'"$job_name"

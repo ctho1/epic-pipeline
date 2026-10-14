@@ -32,7 +32,7 @@ Each job works in its own sample directory (incl. `TMPDIR`), so parallel jobs ne
 | File | Purpose |
 |---|---|
 | `submit_epic.sh` | Finds IDAT pairs, unpacks `.idat.gz`, submits one job each |
-| `epic_job.sh` | SLURM job for a single sample (resources in `#SBATCH` header) |
-| `idat_report.R` | `Rscript idat_report.R <idat_basename> <output_dir>` |
+| `scripts/epic_job.sh` | SLURM job for a single sample (resources in `#SBATCH` header) |
+| `scripts/idat_report.R` | `Rscript scripts/idat_report.R <idat_basename> <output_dir>` |
 
 Resources can be overridden without editing files, e.g. `SBATCH_PARTITION=express SBATCH_TIMELIMIT=00:10:00 ./submit_epic.sh`.
