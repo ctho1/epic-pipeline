@@ -1,0 +1,8 @@
+# Data and results are never committed
+input/
+output/
+log/
+*.idat
+*.idat.gz
+.DS_Store
+.Rhistory
