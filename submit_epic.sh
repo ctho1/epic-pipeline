@@ -1,7 +1,7 @@
 #!/bin/bash
 # Submits one SLURM job per IDAT pair found in the input directory.
 # Run on the login node (not via sbatch):
-#   ./submit_epic.sh [input_dir] [output_dir]
+#   ./submit_epic.sh [--partition <name>] [input_dir] [output_dir]
 # Defaults: ./input and ./output next to this script.
 # Set DRY_RUN=1 to only print what would be submitted.
 
@@ -12,9 +12,28 @@ if [[ -n "${SLURM_JOB_ID:-}" ]]; then
   exit 1
 fi
 
+# Partitions: jobs are submitted to all candidates that are up and SLURM starts
+# each job on whichever frees up first. requeue may preempt jobs; they then
+# restart from scratch, which is cheap for ~10 min jobs.
+: "${SLURM_AUTO_PARTITION:=true}"
+: "${SLURM_CPU_PARTITIONS:=normal,requeue}"
+: "${SLURM_FALLBACK_PARTITION:=normal}"
+
+PARTITION_OVERRIDE=""
+POSITIONAL=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --partition)
+      [[ $# -ge 2 ]] || { echo "--partition needs a value" >&2; exit 1; }
+      PARTITION_OVERRIDE="$2"; shift 2 ;;
+    -*) echo "Unknown option: $1" >&2; exit 1 ;;
+    *) POSITIONAL+=("$1"); shift ;;
+  esac
+done
+
 EPIC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INPUT_DIR="${1:-$EPIC_DIR/input}"
-OUTPUT_DIR="${2:-$EPIC_DIR/output}"
+INPUT_DIR="${POSITIONAL[0]:-$EPIC_DIR/input}"
+OUTPUT_DIR="${POSITIONAL[1]:-$EPIC_DIR/output}"
 LOG_DIR="$EPIC_DIR/log"
 SCRIPT_DIR="$EPIC_DIR/scripts"
 DRY_RUN="${DRY_RUN:-0}"
@@ -45,6 +64,36 @@ ensure_unpacked() {
     return 1
   fi
 }
+
+# Prints the candidate partitions that are up (comma-separated) and their
+# idle CPUs to stderr. Prints nothing if sinfo is unavailable.
+select_partitions() {
+  sinfo --noheader --partition="$SLURM_CPU_PARTITIONS" --format='%P|%a|%C' 2>/dev/null |
+    awk -F'|' -v want="$SLURM_CPU_PARTITIONS" '
+      $2 == "up" { sub(/\*$/, "", $1); split($3, cpu, "/"); idle[$1] += cpu[2]; up[$1] = 1 }
+      END {
+        n = split(want, w, ",")
+        for (i = 1; i <= n; i++) {
+          if (!(w[i] in up)) continue
+          list = list (list ? "," : "") w[i]
+          info = info (info ? ", " : "") w[i] ": " idle[w[i]] " idle CPUs"
+        }
+        if (list) { print list; print "SLURM load: " info > "/dev/stderr" }
+      }'
+}
+
+if [[ -n "$PARTITION_OVERRIDE" ]]; then
+  partitions="$PARTITION_OVERRIDE"
+elif [[ "$SLURM_AUTO_PARTITION" == "true" ]]; then
+  partitions="$(select_partitions || true)"
+  if [[ -z "$partitions" ]]; then
+    echo "No candidate partition found via sinfo, using $SLURM_FALLBACK_PARTITION."
+    partitions="$SLURM_FALLBACK_PARTITION"
+  fi
+else
+  partitions="$SLURM_FALLBACK_PARTITION"
+fi
+echo "Partition(s): $partitions"
 
 # Names of this user's queued/running jobs, to avoid double submission
 queued="$(squeue -h -u "$USER" -o '%j' 2>/dev/null || true)"
@@ -94,6 +143,7 @@ while IFS= read -r -d '' grn; do
   else
     mkdir -p "$sample_dir"
     job_id="$(sbatch --parsable \
+      --partition="$partitions" \
       --job-name="$job_name" \
       --output="$LOG_DIR/%x_%j.out.txt" \
       --error="$LOG_DIR/%x_%j.err.txt" \

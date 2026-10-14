@@ -8,6 +8,7 @@ MNP v12 classifier report and CNV analysis for Illumina EPIC (v2) IDAT files on 
 # put IDAT pairs (*_Grn.idat + *_Red.idat, or .idat.gz) into ./input (subfolders allowed)
 ./submit_epic.sh                      # or: ./submit_epic.sh <input_dir> <output_dir>
 DRY_RUN=1 ./submit_epic.sh            # only show what would be submitted
+./submit_epic.sh --partition normal   # skip automatic partition choice
 ```
 
 Run `submit_epic.sh` directly on the login node, not via `sbatch`. It submits one job per IDAT pair and skips samples that are already finished (`<id>.done`) or already queued/running. Re-run it to resubmit failed samples. Gzipped IDATs (`.idat.gz`) are unpacked next to the original before submission; the `.gz` files are kept.
@@ -35,4 +36,14 @@ Each job works in its own sample directory (incl. `TMPDIR`), so parallel jobs ne
 | `scripts/epic_job.sh` | SLURM job for a single sample (resources in `#SBATCH` header) |
 | `scripts/idat_report.R` | `Rscript scripts/idat_report.R <idat_basename> <output_dir>` |
 
-Resources can be overridden without editing files, e.g. `SBATCH_PARTITION=express SBATCH_TIMELIMIT=00:10:00 ./submit_epic.sh`.
+## Partitions and resources
+
+Jobs are submitted to both **`normal`** and **`requeue`** (only those that are up, checked via `sinfo`), and SLURM starts each job on whichever frees up first. Jobs preempted on `requeue` restart from scratch, which is cheap at ~10 min per sample.
+
+```bash
+SLURM_CPU_PARTITIONS=normal ./submit_epic.sh   # candidate partitions (default: normal,requeue)
+SLURM_AUTO_PARTITION=false ./submit_epic.sh    # always use SLURM_FALLBACK_PARTITION (default: normal)
+SBATCH_TIMELIMIT=00:10:00 ./submit_epic.sh     # other sbatch options via SBATCH_* env vars
+```
+
+Per job: 4 CPUs, 32 GB RAM, 15 min (see `scripts/epic_job.sh`).
