@@ -27,6 +27,24 @@ mkdir -p "$OUTPUT_DIR" "$LOG_DIR"
 INPUT_DIR="$(cd "$INPUT_DIR" && pwd)"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 
+# Unpacks <file>.idat.gz to <file>.idat unless the .idat already exists.
+# Writes to a temp file first, so an interrupted run never leaves a truncated IDAT.
+ensure_unpacked() {
+  local idat="$1"
+  [[ -f "$idat" ]] && return 0
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "[dry run] would unpack $(basename "$idat").gz"
+    return 0
+  fi
+  if gzip -dc "$idat.gz" > "$idat.part" && mv "$idat.part" "$idat"; then
+    echo "Unpacked $(basename "$idat").gz"
+  else
+    rm -f "$idat.part"
+    echo "WARNING: could not unpack $idat.gz" >&2
+    return 1
+  fi
+}
+
 # Names of this user's queued/running jobs, to avoid double submission
 queued="$(squeue -h -u "$USER" -o '%j' 2>/dev/null || true)"
 
@@ -35,12 +53,18 @@ skipped=0
 incomplete=0
 
 while IFS= read -r -d '' grn; do
-  base="${grn%_Grn.idat}"
+  # Already unpacked: the plain .idat is handled instead
+  if [[ "$grn" == *.gz && -f "${grn%.gz}" ]]; then
+    continue
+  fi
+
+  base="${grn%.gz}"
+  base="${base%_Grn.idat}"
   id="$(basename "$base")"
   job_name="epic_${id}"
   sample_dir="$OUTPUT_DIR/$id"
 
-  if [[ ! -f "${base}_Red.idat" ]]; then
+  if [[ ! -f "${base}_Red.idat" && ! -f "${base}_Red.idat.gz" ]]; then
     echo "WARNING: incomplete IDAT pair for $id (missing _Red.idat), skipping."
     incomplete=$((incomplete + 1))
     continue
@@ -58,6 +82,12 @@ while IFS= read -r -d '' grn; do
     continue
   fi
 
+  if ! ensure_unpacked "${base}_Grn.idat" || ! ensure_unpacked "${base}_Red.idat"; then
+    echo "WARNING: unpacking failed for $id, skipping."
+    incomplete=$((incomplete + 1))
+    continue
+  fi
+
   if [[ "$DRY_RUN" == "1" ]]; then
     echo "[dry run] would submit $id -> $sample_dir"
   else
@@ -71,6 +101,6 @@ while IFS= read -r -d '' grn; do
   fi
   queued+=$'\n'"$job_name"
   submitted=$((submitted + 1))
-done < <(find "$INPUT_DIR" -type f -name '*_Grn.idat' -print0 | sort -z)
+done < <(find "$INPUT_DIR" -type f \( -name '*_Grn.idat' -o -name '*_Grn.idat.gz' \) -print0 | sort -z)
 
 echo "Done: $submitted submitted, $skipped skipped, $incomplete incomplete."

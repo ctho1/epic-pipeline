@@ -5,12 +5,12 @@ MNP v12 classifier report and CNV analysis for Illumina EPIC (v2) IDAT files on 
 ## Usage
 
 ```bash
-# put IDAT pairs (*_Grn.idat + *_Red.idat) into ./input (subfolders allowed)
+# put IDAT pairs (*_Grn.idat + *_Red.idat, or .idat.gz) into ./input (subfolders allowed)
 ./submit_epic.sh                      # or: ./submit_epic.sh <input_dir> <output_dir>
 DRY_RUN=1 ./submit_epic.sh            # only show what would be submitted
 ```
 
-Run `submit_epic.sh` directly on the login node, not via `sbatch`. It submits one job per IDAT pair and skips samples that are already finished (`<id>.done`) or already queued/running. Re-run it to resubmit failed samples.
+Run `submit_epic.sh` directly on the login node, not via `sbatch`. It submits one job per IDAT pair and skips samples that are already finished (`<id>.done`) or already queued/running. Re-run it to resubmit failed samples. Gzipped IDATs (`.idat.gz`) are unpacked next to the original before submission; the `.gz` files are kept.
 
 ## Output
 
@@ -31,7 +31,7 @@ Each job works in its own sample directory (incl. `TMPDIR`), so parallel jobs ne
 
 | File | Purpose |
 |---|---|
-| `submit_epic.sh` | Finds IDAT pairs, submits one job each |
+| `submit_epic.sh` | Finds IDAT pairs, unpacks `.idat.gz`, submits one job each |
 | `epic_job.sh` | SLURM job for a single sample (resources in `#SBATCH` header) |
 | `idat_report.R` | `Rscript idat_report.R <idat_basename> <output_dir>` |
 
