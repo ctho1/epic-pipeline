@@ -26,7 +26,7 @@ output/<sentrix_id>/
 log/epic_<sentrix_id>_<jobid>.{out,err}.txt
 ```
 
-Each job works in its own sample directory (incl. `TMPDIR`), so parallel jobs never share temporary files.
+Each job keeps all temporary files in its own sample directory (`TMPDIR`, incl. the rmarkdown intermediates of the MNP report, which would otherwise be written into the shared package directory), so parallel jobs never collide.
 
 ## Files
 

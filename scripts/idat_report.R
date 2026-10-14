@@ -25,6 +25,9 @@ library(minfi)
 library(mnp.v12epicv2)
 library(conumee2.0)
 
+# Compute nodes have no X11 display: render PNGs with cairo
+if (capabilities("cairo")) options(bitmapType = "cairo")
+
 # Create sample output directory if it doesn't exist
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 
@@ -33,8 +36,18 @@ cat("Processing sample:", idat, "\n")
 # Load IDAT files
 RGset <- read.metharray(idat_base, verbose = FALSE)
 
-# Generate MNP report
-MNPreport(RGset, output_dir = output_dir, sampleID = idat)
+# Generate MNP report. MNPreport renders report.Rmd from the installed package and
+# rmarkdown writes report.knit.md next to it by default, i.e. into the package
+# directory shared by all parallel jobs. Keep intermediates in this job's tempdir().
+report_tmp <- file.path(tempdir(), "report")
+dir.create(report_tmp)
+MNPreport(RGset, output_dir = output_dir, sampleID = idat, intermediates_dir = report_tmp)
+
+# The report must show this sample's ID (guards against mixed-up reports)
+report_html <- file.path(output_dir, paste0(idat, ".html"))
+if (!any(grepl(idat, readLines(report_html, warn = FALSE), fixed = TRUE))) {
+  stop("Report ", report_html, " does not contain sample ID ", idat)
+}
 
 # Convert RGset to Mset
 Mset_raw <- preprocessRaw(RGset)
