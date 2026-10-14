@@ -1,5 +1,6 @@
 # Data and results are never committed
-input/
+input/*
+!input/.gitkeep
 output/
 log/
 *.idat
